@@ -64,6 +64,21 @@ module IFU #(
 		end
 	end
 
+	if (pkt[6:0] == 7'b1100111) begin
+		assign branch_taken = 1'b1;
+	end else begin
+		if (pkt[6:0] == 7'b1100011) begin
+			if (pkt[31:20] < pc) begin
+				assign branch_taken = 1'b1;
+			end else begin
+				assign branch_taken = 1'b0;
+			end
+			assign branch_taken = 1'b1;
+		end else begin
+			assign branch_taken = 1'b0;
+		end
+	end
+
 	assign instruction_pkt = buf_1;
 	assign instruction_pc = buf_2;
 	assign instruction_valid = pkt_valid;
