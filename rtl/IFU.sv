@@ -5,22 +5,23 @@ module IFU #(
 	input  logic             clk,
 	input  logic             rst,
 
-	// Instruction-memory request interface.
-	output logic [XLEN-1:0]  imem_addr,
-	output logic             imem_valid,
-	input  logic [31:0]      imem_rdata,
-	input  logic             imem_ready,
+	// Instruction access interface.
+	output logic [XLEN-1:0]  pc_next,
+	output logic             pc_valid,
+	input  logic [31:0]      pkt,
+	input  logic             pkt_valid,
 
 	// Pipeline control.
     output logic             mem_stall,
     output logic             mem_flush,
     output logic             branch_taken,
+	output logic             bubble,
     input  logic             stall,
     input  logic             cpu_stall,
-    input  logic             branch_flush,
+    input  logic             flush,
     input  logic             branch_pc,
 
-	// Instruction supplied to the decode stage.
+	// Decode unit stage.
 	output logic [XLEN-1:0]  instruction_pkt,
 	output logic [XLEN-1:0]  instruction_pc,
 	output logic             instruction_valid
@@ -29,26 +30,45 @@ module IFU #(
 	logic [XLEN-1:0] pc;
     logic [XLEN-1:0] buf_1;
     logic [XLEN-1:0] buf_2;
+	logic            buf_1_valid;
+	logic            buf_2_valid;
 
-    // TODO: Implement branch prediction and flush logic.
+	if (!flush) begin
+		if (!branch_taken) begin
+			if (!cpu_stall) begin
+				assign pc_next = pc + 4;
+			end else begin
+				assign pc_next = pc;
+			end
+		end else begin
+			assign pc_next = branch_pc;
+		end
+	end else begin
+		assign pc_next = branch_pc;
+	end
 
-	assign imem_addr  = pc;
-	assign imem_valid = !rst && !cpu_stall && !redirect_valid;
-
-	always_ff @(posedge clk) begin
+	always_ff @(posedge clk or posedge rst) begin
 		if (rst) begin
-			pc                <= RESET_PC;
-			instruction_pkt   <= '0;
-			instruction_pc    <= '0;
-			instruction_valid <= 1'b0;
-        end else if (!cpu_stall && !mem_stall && imem_ready) begin
-			instruction_pkt   <= imem_rdata;
-			instruction_pc    <= pc;
-			instruction_valid <= 1'b1;
-			pc                <= pc + XLEN'(4);
+			buf_1       <= '0;
+			buf_2       <= '0;
+			buf_1_valid <= 1'b0;
+			buf_2_valid <= 1'b0;
+		end else if (flush || branch_taken) begin
+			buf_1_valid <= 1'b0;
+			buf_2_valid <= 1'b0;
 		end else if (!stall && !cpu_stall) begin
-			instruction_valid <= 1'b0;
+			buf_1       <= pkt;
+			buf_2       <= buf_1;
+			buf_1_valid <= pkt_valid;
+			buf_2_valid <= buf_1_valid;
 		end
 	end
+
+	assign instruction_pkt = buf_1;
+	assign instruction_pc = buf_2;
+	assign instruction_valid = pkt_valid;
+
+	assign mem_stall = stall | cpu_stall;
+	assign mem_flush = flush | branch_taken;
 
 endmodule
