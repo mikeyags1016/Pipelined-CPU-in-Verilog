@@ -79,6 +79,33 @@ module IFU #(
 		end
 	end
 
+	if (branch_flush) begin
+		assign bubble = 1'b1;
+	end else begin
+		if (branch_taken && !stall) begin
+			assign bubble = 1'b1;
+		end else begin
+			if (stall) begin
+				// hold current data for buf 1 and 2, do not bubble
+			end else begin
+				if (pkt_valid) begin
+					assign buf1 = pkt;
+				end else begin
+					assign bubble = 1'b1;
+				end
+
+				assign buf_2 = buf_1;
+			end
+			assign bubble = 1'b0;
+		end
+
+		assign bubble = 1'b0;
+	end
+	if (bubble) begin
+		assign buf_1_valid = 1'b0;
+		assign buf_2_valid = 1'b0;
+	end
+
 	assign instruction_pkt = buf_1;
 	assign instruction_pc = buf_2;
 	assign instruction_valid = pkt_valid;
